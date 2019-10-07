@@ -51,7 +51,7 @@ class Worker(Thread):
 
     @capture_error
     def run(self):
-        support.logger.info('Worker is running')
+        support.logger.info('Consumer worker is running')
         while True:
             support.statsd.increment('request.messages')
             messages = self._queue.get()

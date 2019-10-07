@@ -1,9 +1,8 @@
+import os
 import time
 import weakref
 from multiprocessing import cpu_count
 from threading import Thread, Event
-
-from bounded_pool import BoundedThreadPool
 
 from .support import support
 from .worker import Worker
@@ -22,14 +21,20 @@ class Consumer:
                  max_workers=cpu_count() * 4,
                  max_handlers=cpu_count() * 4 * 4,
                  messages_bulk_size=1,
-                 worker_polling_time=0):
+                 worker_polling_time=0,
+                 process_pool=False):
         self._queue = queue
         self._handler = getattr(self._queue, 'handler', handler)
         assert self._handler, 'Messages handler is not defined!'
-        self._handlers_pool = weakref.WeakKeyDictionary()
-        self._stuck_handlers = weakref.WeakSet()
-        self._max_handlers = max_handlers
-        self._executor = BoundedThreadPool(max_handlers)
+
+        if process_pool:
+            from bounded_pool import BoundedProcessPool as Pool
+            init = lambda: support.logger.debug(f'Pool worker launched in pid {os.getpid()}')
+        else:
+            from bounded_pool import BoundedThreadPool as Pool
+            init = None
+
+        self._executor = Pool(max_handlers, initializer=init)
         self._messages_bulk_size = messages_bulk_size
         self._worker_polling_time = worker_polling_time
         self._workers = [self._get_worker() for _ in range(max_workers)]
