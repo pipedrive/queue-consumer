@@ -92,19 +92,23 @@ It doesn't matter with `messages_bulk_size=1` (default), when to read one messag
 Consumer(
     queue,
     handler=None,
-    max_workers=cpu_count() * 4,
-    max_handlers=cpu_count() * 4 * 4,
+    max_workers=cpu_count(),
+    max_handlers=cpu_count(),
     messages_bulk_size=1,
-    worker_polling_time=0)
+    worker_polling_time=0,
+    pool_initializer=None,
+    with_thread_executor=True)
 ```
 
 Instantiate `consumer` object. Arguments:
 - `queue` - Queue which to consume messages from.
 - `handler=None` - Handler to processes messages. If `None` it try to take `queue.handler`. If no one exception is raised.
-- `max_workers=cpu_count() * 4` - Maximum number of concurrent workers to read messages from queue.
-- `max_handlers=cpu_count() * 4 * 4` - Maximum number of concurrent handlers to process messages from all workers.
+- `max_workers=cpu_count()` - Maximum number of concurrent workers to read messages from queue.
+- `max_handlers=cpu_count()` - Maximum number of concurrent handlers to process messages from all workers.
 - `messages_bulk_size=1` - Maximum number of messages sending to handler. Not bigger that `queue.get` can return.
 - `worker_polling_time=0` - Seconds to sleep between `queue.get` calls. Can be fractional.
+- `pool_initializer=None` - Function which will be called on pool executor workers start. **NB!** Don't confuse with `consumer` workers.
+- `with_thread_executor=True` - Flag to launch pool workers as threads (`True`) or as processes (`False`).
 
 ```python
 consumer.start()
