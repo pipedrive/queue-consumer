@@ -38,16 +38,17 @@ class Worker(Thread):
     @capture_error
     def run(self):
         support.logger.info('Consumer worker is running')
+
         while True:
             messages = self._queue.get()
             support.statsd.increment('received.messages', len(messages))
 
             for chunk in chunkify(messages, self._bulk_size):
                 iterator = iter(chunk)
-                future = self._executor.submit(self._handler, iterator)
-                future.add_done_callback(partial(self._task_done,
-                                                    sent_iterator=iterator,
-                                                    sent_messages=chunk))
+
+                future = self._executor.schedule(self._handler, args=(iterator,))
+                future.add_done_callback(
+                    partial(self._task_done, sent_messages=chunk))
 
                 support.statsd.increment('started.messages', len(chunk))
 
@@ -61,16 +62,17 @@ class Worker(Thread):
         self._shutdown = True
 
     @capture_error
-    def _task_done(self, future, sent_iterator, sent_messages):
+    def _task_done(self, future, sent_messages):
         exc = future.exception()
 
+        sent_iterator = exc.args[-1] if exc else future.result()
         failed_messages = list(sent_iterator)
         if exc:
             failed_messages = sent_messages[-len(failed_messages) - 1:]
         if failed_messages:
             successful_messages = sent_messages[:-len(failed_messages)]
         else:
-            successful_messages = sent_messages[:]
+        successful_messages = sent_messages[:]
 
         if exc:
             support.logger.error(f'Oops! Handler is failed: {repr(exc)}', exc_info=exc)

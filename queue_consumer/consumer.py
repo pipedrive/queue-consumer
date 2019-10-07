@@ -12,6 +12,18 @@ __all__ = (
 )
 
 
+HANDLER_NAME = '__message_handler'
+
+
+def _handler(messages):
+    try:
+        globals()[HANDLER_NAME](messages)
+    except Exception as exc:
+        exc.args += (messages,)
+        raise
+    return messages
+
+
 class Consumer:
 
     def __init__(self,
@@ -21,6 +33,7 @@ class Consumer:
                  max_handlers=cpu_count() * 4 * 4,
                  messages_bulk_size=1,
                  worker_polling_time=0,
+                 initializer=None,
                  process_pool=False):
         self._queue = queue
         self._handler = getattr(self._queue, 'handler', handler)
@@ -28,10 +41,19 @@ class Consumer:
 
         if process_pool:
             from bounded_pool import BoundedProcessPool as Pool
-            init = lambda: support.logger.debug(f'Pool worker launched in pid {os.getpid()}')
+
+            def init():
+                import os
+                support.logger.debug(f'Pool worker launched in pid {os.getpid()}')
+                globals()[HANDLER_NAME] = handler
+                support.logger.debug(f'Handler {HANDLER_NAME!r} is injected')
+                initializer()
+
+            self._handler = _handler
+
         else:
             from bounded_pool import BoundedThreadPool as Pool
-            init = None
+            init = initializer
 
         self._executor = Pool(max_handlers, initializer=init)
         self._messages_bulk_size = messages_bulk_size
