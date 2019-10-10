@@ -1,6 +1,6 @@
 # Concurrent queue consumer
 
-#### Service, which consumes messages from a queue in multithreading mode and passes them to handlers, launched with other threads as well.
+#### Service, which consumes messages from a queue in multithreading mode and passes them to handlers, launched inside threads or processes as well.
 
 This project was born under inspiration of https://github.com/goodmanship/sqsworkers/ , where I would like to implement my vision of proper architecture in such projects.
 
