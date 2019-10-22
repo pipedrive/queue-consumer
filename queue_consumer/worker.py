@@ -62,6 +62,7 @@ class Worker(Thread):
                 iterator = iter(chunk)
 
                 future = self._executor.schedule(self._handler, args=(iterator,))
+                self._handlers_pool[future] = time.time()
                 future.add_done_callback(
                     partial(self._task_done, sent_messages=chunk))
 

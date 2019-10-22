@@ -70,6 +70,9 @@ class Consumer:
             self._handler = _process_handler
 
         self._queue = queue
+        self._handlers_pool = weakref.WeakKeyDictionary()
+        self._stuck_handlers = weakref.WeakSet()
+        self._max_handlers = max_handlers
         self._executor = Pool(max_handlers, initializer=initializer)
         self._messages_bulk_size = messages_bulk_size
         self._worker_polling_time = worker_polling_time
@@ -133,14 +136,15 @@ class Consumer:
             if worker.is_alive():
                 workers.append(worker)
             else:
+                support.statsd.increment('revived.workers')
+
                 new_worker = self._get_worker()
                 new_worker.start()
                 workers.append(new_worker)
-                support.statsd.increment('revived.workers')
         self._workers = workers
 
     def _check_handlers(self, time_limit):
-        for handler, timestamp in list(self._handlers_pool.items()):
+        for handler, timestamp in self._handlers_pool.items():
 
             if not handler.running():
                 continue
