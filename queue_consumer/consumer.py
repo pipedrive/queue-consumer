@@ -136,11 +136,10 @@ class Consumer:
             if worker.is_alive():
                 workers.append(worker)
             else:
-                support.statsd.increment('revived.workers')
-
                 new_worker = self._get_worker()
                 new_worker.start()
                 workers.append(new_worker)
+                support.statsd.increment('revived.workers')
         self._workers = workers
 
     def _check_handlers(self, time_limit):
