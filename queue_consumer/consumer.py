@@ -41,7 +41,6 @@ class Consumer:
         handler = getattr(queue, 'handler', handler)
         assert handler, 'Messages handler is not defined!'
 
-
         if with_thread_executor:
             from bounded_pool import BoundedThreadPool as Pool
             initializer = pool_initializer
@@ -70,7 +69,7 @@ class Consumer:
             self._handler = _process_handler
 
         self._queue = queue
-        self._handlers_pool = weakref.WeakKeyDictionary()
+        self._handlers_pool = weakref.WeakSet()
         self._stuck_handlers = weakref.WeakSet()
         self._max_handlers = max_handlers
         self._executor = Pool(max_handlers, initializer=initializer)
@@ -80,7 +79,7 @@ class Consumer:
         self._shutdown = False
         self._no_supervise = Event()
         support.statsd.increment('revived.workers', 0)
-        support.statsd.increment('stuck.handlers', 0)
+        support.statsd.gauge('stuck.handlers', 0)
 
     def start(self):
         for worker in self._workers:
@@ -118,6 +117,7 @@ class Consumer:
             self._check_handlers(stuck_time)
 
             stuck_handlers_number = len(self._stuck_handlers)
+            support.statsd.gauge('stuck.handlers', stuck_handlers_number)
             if stuck_handlers_number > stuck_limit:
                 raise RuntimeError(
                     f'Number of stuck handlers {stuck_handlers_number} more '
@@ -143,19 +143,23 @@ class Consumer:
         self._workers = workers
 
     def _check_handlers(self, time_limit):
-        for handler, timestamp in self._handlers_pool.items():
+        for handler in list(self._handlers_pool):
+            handler_task = handler.task()
+
+            if not handler_task:
+                continue
 
             if not handler.running():
                 continue
 
-            if time.time() - timestamp < time_limit:
+            if time.time() - handler_task.timestamp < time_limit:
                 continue
 
             if not self._executor.release(handler):
                 continue
 
+            self._executor.stop_worker(handler_task.worker_id)
             self._stuck_handlers.add(handler)
-            support.statsd.increment('stuck.handlers')
 
     def _get_worker(self):
         return Worker(self._queue,
