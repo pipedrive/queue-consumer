@@ -18,7 +18,8 @@ def capture_error(func):
         try:
             return func(*args, **kwgs)
         except Exception as exc:
-            support.logger.error(f'Oops! Worker is failed: {repr(exc)}', exc_info=exc)
+            support.logger.error(
+                f'Oops! Worker is failed: {repr(exc)}', exc_info=exc)
             raise
 
     return wrapper
@@ -62,7 +63,7 @@ class Worker(Thread):
                 iterator = iter(chunk)
 
                 future = self._executor.schedule(self._handler, args=(iterator,))
-                self._handlers_pool[future] = time.time()
+                self._handlers_pool.add(future)
                 future.add_done_callback(
                     partial(self._task_done, sent_messages=chunk))
 
