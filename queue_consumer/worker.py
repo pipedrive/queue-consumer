@@ -1,4 +1,5 @@
 import time
+import weakref
 from functools import partial, wraps
 from threading import Thread
 
@@ -31,13 +32,13 @@ class Worker(Thread):
                  queue,
                  executor,
                  handler,
-                 handlers_pool,
+                 handlers_queue,
                  bulk_size=1,
                  polling_time=0):
         self._queue = queue
         self._executor = executor
         self._handler = handler
-        self._handlers_pool = handlers_pool
+        self._handlers_queue = handlers_queue
         self._bulk_size = bulk_size
         self._polling_time = polling_time
         self._shutdown = False
@@ -63,7 +64,7 @@ class Worker(Thread):
                 iterator = iter(chunk)
 
                 future = self._executor.schedule(self._handler, args=(iterator,))
-                self._handlers_pool.add(future)
+                self._handlers_queue.append(weakref.ref(future))
                 future.add_done_callback(
                     partial(self._task_done, sent_messages=chunk))
 

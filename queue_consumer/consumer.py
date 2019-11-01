@@ -1,5 +1,6 @@
 import time
 import weakref
+from collections import deque
 from multiprocessing import cpu_count
 from threading import Thread, Event
 
@@ -69,7 +70,8 @@ class Consumer:
             self._handler = _process_handler
 
         self._queue = queue
-        self._handlers_pool = weakref.WeakSet()
+        self._handlers_queue = deque()
+        self._working_handlers = weakref.WeakSet()
         self._stuck_handlers = weakref.WeakSet()
         self._max_handlers = max_handlers
         self._executor = Pool(max_handlers, initializer=initializer)
@@ -143,7 +145,16 @@ class Consumer:
         self._workers = workers
 
     def _check_handlers(self, time_limit):
-        for handler in list(self._handlers_pool):
+        for _ in range(self._max_handlers):
+            try:
+                h = self._handlers_queue.popleft()
+            except IndexError:
+                break  # queue is empty
+            h = h()  # get object from weak reference
+            if h:
+                self._working_handlers.add(h)
+
+        for handler in list(self._working_handlers):
             handler_task = handler.task()
 
             if not handler_task:
@@ -159,12 +170,13 @@ class Consumer:
                 continue
 
             self._executor.stop_worker(handler_task.worker_id)
+            self._working_handlers.remove(handler)
             self._stuck_handlers.add(handler)
 
     def _get_worker(self):
         return Worker(self._queue,
                       self._executor,
                       self._handler,
-                      self._handlers_pool,
+                      self._handlers_queue,
                       self._messages_bulk_size,
                       self._worker_polling_time)
